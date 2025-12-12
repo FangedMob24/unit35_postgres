@@ -7,10 +7,10 @@ const ExpressError = require("../expressError");
 // Get all companies
 router.get("/", async function(req, res, next) {
     try {
-        const results = await db.query(`SELECT * FROM companies`);
+        const results = await db.query(`SELECT code, name FROM companies`);
         return res.json({ companies: results.rows });
     } catch (err) {
-        return next(new ExpressError(err.message, 500));
+        return next(err);
     }
 });
 
@@ -18,13 +18,15 @@ router.get("/", async function(req, res, next) {
 router.get("/:code", async function (req, res, next) {
     try {
         let { code } = req.params;
-        console.log(code);
-        const results = await db.query(`SELECT * FROM companies WHERE code = $1`, [code])
+        const results = await db.query(`SELECT c.code, c.name, c.description, 
+                                        json_agg(json_build_object('id', i.id, 'amt', i.amt, 'paid', i.paid, 'add_date', i.add_date,'paid_date', i.paid_date)) AS invoices
+                                        FROM companies AS c RIGHT JOIN invoices AS i ON i.comp_code = c.code 
+                                        WHERE code = $1 GROUP BY c.code, c.name, c.description, i.comp_code`, [code])
         //add in error handling for not found 404
         if(results.rows.length === 0){
             throw new ExpressError(`Can't find company with id of ${code}`, 404)
         }
-        return res.send({ company: results.rows[0] })
+        return res.send({ company: results.rows })
     } catch (err) {
         return next(err)
     }
@@ -52,7 +54,7 @@ router.patch("/:code", async function (req, res, next) {
         let { name, description } = req.body;
 
         if( code === null || name === null){
-            throw new ExpressError("code or name was empty", 404)
+            throw new ExpressError("code or name was empty", 404);
         }
 
         const results = await db.query(`UPDATE companies SET name=$1, description=$2 WHERE code=$3 RETURNING code, name, description`, [name, description, code]);
@@ -61,7 +63,7 @@ router.patch("/:code", async function (req, res, next) {
             throw new ExpressError(`Can't find company with id of ${code}`, 404)
         }
 
-        return res.send({ company: results.rows[0] })
+        return res.send({ company: results.rows[0] });
     } catch (err) {
         return next(err);
     }
@@ -70,10 +72,10 @@ router.patch("/:code", async function (req, res, next) {
 router.delete("/:code", async function (req, res, next) {
     try {
         let { code } = req.params;
-        const results = await db.query(`DELETE FROM companies WHERE code=$1`, [code]);
+        const results = await db.query(`DELETE FROM companies WHERE code=$1 RETURNING code`, [code]);
 
         if(results.rows.length === 0){
-            throw new ExpressError(`Can't find company with id of ${code} RETURNING *`, 404)
+            throw new ExpressError(`Can't find company with id of ${code}`, 404)
         }
         return res.send({ status:"DELETED"})
     } catch (err) {
