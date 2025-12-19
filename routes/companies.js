@@ -1,3 +1,4 @@
+const slugify = require('slugify')
 const express = require('express');
 const router = express.Router();
 
@@ -18,15 +19,15 @@ router.get("/", async function(req, res, next) {
 router.get("/:code", async function (req, res, next) {
     try {
         let { code } = req.params;
-        const results = await db.query(`SELECT c.code, c.name, c.description, 
-                                        json_agg(json_build_object('id', i.id, 'amt', i.amt, 'paid', i.paid, 'add_date', i.add_date,'paid_date', i.paid_date)) AS invoices
-                                        FROM companies AS c RIGHT JOIN invoices AS i ON i.comp_code = c.code 
-                                        WHERE code = $1 GROUP BY c.code, c.name, c.description, i.comp_code`, [code])
+        const companyResults = await db.query(`SELECT * FROM companies WHERE code = $1`, [code])
+        const invoiceResults = await db.query(`SELECT * FROM invoices WHERE comp_code = $1`, [code])
         //add in error handling for not found 404
-        if(results.rows.length === 0){
-            throw new ExpressError(`Can't find company with id of ${code}`, 404)
+        if(companyResults.rows.length === 0){
+            throw new ExpressError(`Can't find company with code of ${code}`, 404)
         }
-        return res.send({ company: results.rows })
+        const company = companyResults.rows[0];
+        company.invoices = invoiceResults.rows;
+        return res.send(company);
     } catch (err) {
         return next(err)
     }
@@ -35,10 +36,11 @@ router.get("/:code", async function (req, res, next) {
 // add company
 router.post("/", async function (req, res, next) {
     try {
-        let { code, name, description } = req.body;
-        if( code === null || name === null){
+        let { name, description } = req.body;
+        if( name === null){
             throw new ExpressError("code or name was empty", 404)
         }
+        let code = slugify(name, {replacement: '-', lower: true, strict: true});
         const results = await db.query(`INSERT INTO companies (code, name, description) VALUES ($1, $2, $3) RETURNING *`, [code, name, description]);
 
         return res.send({ company: results.rows[0] });

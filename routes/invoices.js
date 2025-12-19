@@ -17,14 +17,14 @@ router.get("/", async function (req, res, next) {
 router.get("/:id", async function (req, res, next) {
     try {
         let { id } = req.params;
-        const results = await db.query(`SELECT i.id, i.amt, i.paid, i.add_date, i.paid_date,
-                                        json_agg(json_build_object(code, c.code, name, c.name, description, c.description)) AS company
-                                        FROM invoices AS i RIGHT JOIN companies AS c ON c.code = i.comp_code
-                                        WHERE id=$1 GROUP BY i.id, i.amt, i.paid, i.add_date, i.paid_date`, [id]);
-        if(results.rows.length === 0){
+        const invoiceResults = await db.query(`SELECT * FROM invoices WHERE id=$1`, [id]);
+        const companyResults = await db.query(`SELECT * FROM companies WHERE code = $1`, [invoiceResults.rows[0].comp_code]);
+        if(invoiceResults.rows.length === 0){
             throw new ExpressError(`Can't find invoice with id of ${id}`,404)
         }
-        return res.json({ invoice: results.rows })
+        const invoice = invoiceResults.rows[0];
+        invoice.company = companyResults.rows[0]
+        return res.send(invoice)
     }catch(err) {
         return next(err)
     }
@@ -47,12 +47,17 @@ router.post("/", async function (req, res, next) {
 router.patch("/:id", async function (req, res, next) {
     try {
         let { id } = req.params;
-        let { amt } = req.body;
-
+        let { amt, paid } = req.body;
+        let paid_date;
         if( amt === null ){
             throw new ExpressError("Amount is required", 404);
         }
-        const results = await db.query(`UPDATE invoices SET amt=$1 WHERE id=$2 RETURNING *`, [amt, id]);
+        if( paid === true){
+            paid_date = new Date().toISOString().split('T')[0];
+        } else if( paid === false){
+            paid_date = null;
+        }
+        const results = await db.query(`UPDATE invoices SET amt=$1, paid=$2, paid_date=$3 WHERE id=$4 RETURNING *`, [amt, paid, paid_date, id]);
         if(results.rows.length === 0){
             throw new ExpressError(`Can't find invoice with id of ${id}`, 404);
         }
