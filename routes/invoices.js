@@ -18,10 +18,11 @@ router.get("/:id", async function (req, res, next) {
     try {
         let { id } = req.params;
         const invoiceResults = await db.query(`SELECT * FROM invoices WHERE id=$1`, [id]);
-        const companyResults = await db.query(`SELECT * FROM companies WHERE code = $1`, [invoiceResults.rows[0].comp_code]);
         if(invoiceResults.rows.length === 0){
-            throw new ExpressError(`Can't find invoice with id of ${id}`,404)
+            throw new ExpressError(`Can't find invoice with id of ${id}`, 404)
         }
+
+        const companyResults = await db.query(`SELECT * FROM companies WHERE code = $1`, [invoiceResults.rows[0].comp_code]);        
         const invoice = invoiceResults.rows[0];
         invoice.company = companyResults.rows[0]
         return res.send(invoice)
@@ -37,7 +38,6 @@ router.post("/", async function (req, res, next) {
             throw new ExpressError(" company code and amount are required ", 404);
         }
         const results = await db.query(`INSERT INTO invoices (comp_code, amt) VALUES ($1, $2) RETURNING *`, [comp_code, amt]);
-
         return res.send({ invoice: results.rows });
     }catch(err) {
         return next(err);
@@ -61,7 +61,6 @@ router.patch("/:id", async function (req, res, next) {
         if(results.rows.length === 0){
             throw new ExpressError(`Can't find invoice with id of ${id}`, 404);
         }
-
         return res.send({ invoice: results.rows });
     }catch(err) {
         return next(err);
@@ -72,7 +71,6 @@ router.delete("/:id", async function (req, res, next) {
     try {
         let { id } = req.params;
         const results = await db.query(`DELETE FROM invoices WHERE id=$1 RETURNING id`, [id]);
-        console.log(results);
         if(results.rows.length === 0){
             throw new ExpressError(`Can't find invoices with id of ${id}`, 404)
         }
