@@ -14,6 +14,22 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_TEST: postgresql://postgres:postgres@localhost:5432/biztime_test
+
     strategy:
       matrix:
         node-version: [18.x, 20.x, 22.x]
@@ -26,6 +42,11 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    - name: Install PostgreSQL client
+      run: sudo apt-get install -y postgresql-client
+    - name: Create test database
+      run: PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE biztime_test;"
+    - name: Run database schema
+      run: PGPASSWORD=postgres psql -h localhost -U postgres -d biztime_test -f data.sql
     - run: npm ci
-    - run: npm run build --if-present
     - run: npm test
